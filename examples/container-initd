@@ -1,0 +1,101 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          docker-example-initd
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Docker container example-initd
+### END INIT INFO
+
+# Author: Christian Simon <simon@swine.de>
+
+# Do NOT "set -e"
+
+# PATH should only include /usr/* if it runs after the mountnfs.sh script
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="Docker container example-initd"
+CONTAINER_NAME=example-initd
+NAME=${CONTAINER_NAME}
+BRIDGE=vmbr0
+IPV4_ADDR=172.20.64.42/24
+IPV4_GW=172.20.64.254
+IPV6_ADDR=2001:db8::42/64
+IPV6_GW=fe80::1
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Load docker extensions
+. /usr/local/docker_init_helper/docker_init_helper.sh
+
+# Enable debugging
+#VERBOSE=1
+#set -x
+
+do_start() {
+
+    docker_ensure_removed
+
+    # Change docker_run according your needs
+    docker_run \
+        -u 1000 \
+        -v /tmp/my_volume:/data \
+        busybox \
+        nc -l -p 1234
+
+    # Setup some special things (e.g. firewall rules)
+    ## Redirect privileged ports
+    docker_net_run iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 50 -j REDIRECT --to-ports 1234
+
+    # Go!
+    docker_resume
+}
+
+
+case "$1" in
+  start)
+    [ "$VERBOSE" != no ] && echo "Starting ${DESC}"
+    if docker_running; then
+        [ "$VERBOSE" != no ] && echo "already running"
+        exit 0
+    fi
+    do_start
+    [ "$VERBOSE" != no ] && echo "done"
+    ;;
+  stop)
+    docker_stop
+    exit $?
+    ;;
+  status)
+    echo -n "Status of ${DESC}: "
+    if docker_running; then
+        echo "running"
+        exit 0
+    else
+        echo "stopped"
+        exit 3
+    fi
+    ;;
+  restart|force-reload)
+    docker_stop
+    do_start
+    ;;
+  netrun)
+    if docker_running; then
+        shift;
+        echo $@
+        docker_get_pid
+        docker_net_run $@
+    else
+        echo "Container not running"
+        exit 1
+    fi
+    ;;
+  *)
+      echo "Usage: $(basename $0) {start|stop|status|restart|force-reload|netrun}" >&2
+    exit 3
+    ;;
+esac
+
+:
