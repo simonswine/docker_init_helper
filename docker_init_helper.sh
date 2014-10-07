@@ -23,6 +23,9 @@ docker_ensure_removed() {
     docker_cmd rm -f
     fi
 
+    # Ensure /var/run/netns exists
+    mkdir -p /var/run/netns
+
     # Remove dangling symlinks
     find -L /var/run/netns -type l -delete
 }
