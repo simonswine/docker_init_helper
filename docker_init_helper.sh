@@ -2,8 +2,25 @@
 # Check if container name is set
 [ -z "${CONTAINER_NAME}" ] && echo "No CONTAINER_NAME is set in env" && exit 1
 
-# Check if bridge name is set
-[ -z "${BRIDGE}" ] && echo "No BRIDGE is set in env" && exit 1
+# Check network mode
+if [ -z "${BRIDGE}" ]; then
+    NET_MODE=builtin
+    [ "$VERBOSE" != no ] && echo "Selecting builtin network mode"
+else
+    if [ -z "${IPV4_ADDR}" ] && [ -z "${IPV4_GW}" ]; then
+        [ "$VERBOSE" != no ] && echo "Will configure dedicated IPv4 address"
+        NET_MODE=bridge
+    fi
+    if [ -z "${IPV6_ADDR}" ] && [ -z "${IPV6_GW}" ]; then
+        [ "$VERBOSE" != no ] && echo "Will configure dedicated IPv6 address"
+        NET_MODE=bridge
+    fi
+    if [ -z "${NET_MODE}" ]; then
+        echo "Bridge network mode was selected, but no IPv4 or IPv6 addresss/gw given"
+        exit 1
+    fi
+    [ "$VERBOSE" != no ] && echo "Selecting bridge network mode with bridge '${BRIDGE}'"
+fi
 
 # Docker cmd wrapper
 docker_cmd() {
@@ -31,9 +48,15 @@ docker_ensure_removed() {
 }
 
 docker_run() {
-    docker run -d --net=none --name=${CONTAINER_NAME} $@ > /dev/null || exit 1
-    docker_cmd pause
-    docker_net
+    if [ "${NET_MODE}" = bridge ]; then
+        docker run -d --net=none --name=${CONTAINER_NAME} $@ > /dev/null || exit 1
+        docker_cmd pause
+        docker_net
+    fi
+    if [ "${NET_MODE}" = builtin ]; then
+        docker run -d --name=${CONTAINER_NAME} $@ > /dev/null || exit 1
+        docker_cmd pause
+    fi
 }
 
 # Check if container is paused
@@ -89,7 +112,7 @@ docker_net_create() {
 
 # Setup ipv4
 docker_net_setup_v4() {
-    [ -z "${IPV4_ADDR}" ] && [ -z "${IPV4_GW}" ] && echo "No IPv4 address/gateway given" && return 0
+    [ -z "${IPV4_ADDR}" ] && [ -z "${IPV4_GW}" ] && return 0
     [ "$VERBOSE" != no ] && echo "Setup IPv4 addresses and routes"
     docker_net_run ip addr add ${IPV4_ADDR} dev eth0
     docker_net_run ip route add default via ${IPV4_GW}
@@ -97,7 +120,7 @@ docker_net_setup_v4() {
 
 # Setup ipv6
 docker_net_setup_v6() {
-    [ -z "${IPV6_ADDR}" ] && [ -z "${IPV6_GW}" ] && echo "No IPv6 address/gateway given" && return 0
+    [ -z "${IPV6_ADDR}" ] && [ -z "${IPV6_GW}" ] && return 0
     [ "$VERBOSE" != no ] && echo "Setup IPv6 addresses and routes"
     # set ip and gw
     docker_net_run ip addr add ${IPV6_ADDR} dev eth0
