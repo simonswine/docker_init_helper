@@ -7,11 +7,11 @@ if [ -z "${BRIDGE}" ]; then
     NET_MODE=builtin
     [ "$VERBOSE" != no ] && echo "Selecting builtin network mode"
 else
-    if [ -z "${IPV4_ADDR}" ] && [ -z "${IPV4_GW}" ]; then
+    if [ ! -z "${IPV4_ADDR}" ] && [ ! -z "${IPV4_GW}" ]; then
         [ "$VERBOSE" != no ] && echo "Will configure dedicated IPv4 address"
         NET_MODE=bridge
     fi
-    if [ -z "${IPV6_ADDR}" ] && [ -z "${IPV6_GW}" ]; then
+    if [ ! -z "${IPV6_ADDR}" ] && [ ! -z "${IPV6_GW}" ]; then
         [ "$VERBOSE" != no ] && echo "Will configure dedicated IPv6 address"
         NET_MODE=bridge
     fi
